@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy-xds
+  namespace: xxx
+  labels:
+    app: envoy-xds
+spec:
+  ports:
+    - protocol: TCP
+      port: 50051
+  selector:
+    app: envoy-xds
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-xds
+  namespace: xxx
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: envoy-xds
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: envoy-xds
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node
+                operator: In
+                values:
+                - envoy
+      containers:
+      - env:
+        - name: CUR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        - name: APP_HOST_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.hostIP
+        - name: APP_NAME
+          value: envoy-xds
+        image: public-domain.com/mgcicd/envoy-xds:2023-05-04
+        imagePullPolicy: IfNotPresent
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - sleep 15
+        name: envoy-xds
+        ports:
+        - containerPort: 50051
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "0"
+            memory: "0"
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /opt/publicCerts
+          name: public-server
+        - mountPath: /opt/privateCerts
+          name: xds-server
+        - mountPath: /config
+          name: config-volume
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 50
+      tolerations:
+      - effect: NoSchedule
+        key: node
+        operator: Equal
+        value: envoy
+      volumes:
+      - secret:
+          secretName: public-server
+        name: public-server
+      - secret:
+          secretName: xds-server
+        name: xds-server
+      - configMap:
+          defaultMode: 420
+          name: zksetting
+        name: config-volume
