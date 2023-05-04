@@ -63,7 +63,7 @@ spec:
               fieldPath: status.hostIP
         - name: APP_NAME
           value: envoy-xds
-        image: public-domain.com/mgcicd/envoy-xds:2023-05-04
+        image: public-domain.com/mgcicd/envoy-xds:2023-04-30-00-28
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
