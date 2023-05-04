@@ -17,13 +17,13 @@ import (
 func NewXdsServer(port int) {
 	ctx := context.Background()
 
-	cert, err := tls.LoadX509KeyPair("certs/server.pem", "certs/server.key")
+	cert, err := tls.LoadX509KeyPair("/opt/privateCerts/server.pem", "/opt/privateCerts/server.key")
 	if err != nil {
 		panic(err)
 	}
 
 	certPool := x509.NewCertPool()
-	rootBuf, err := ioutil.ReadFile("certs/ca.crt")
+	rootBuf, err := ioutil.ReadFile("/opt/privateCerts/ca.crt")
 	if err != nil {
 		panic(err)
 	}

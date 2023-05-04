@@ -63,12 +63,12 @@ func getResp() sd3.DiscoveryResponse {
 	buff := proto.NewBuffer(nil)
 	buff.SetDeterministic(true)
 
-	fileByte, err := ioutil.ReadFile("/opt/publicCerts/34580.com.crt")
+	fileByte, err := ioutil.ReadFile("/opt/publicCerts/public-domain.com.crt")
 	if err != nil {
 		log.Printf("获取私钥失败: %v", err)
 	}
 
-	file2Byte, err := ioutil.ReadFile("/opt/publicCerts/34580.com.key")
+	file2Byte, err := ioutil.ReadFile("/opt/publicCerts/public-domain.com.key")
 	if err != nil {
 		log.Printf("获取证书失败: %v", err)
 	}
