@@ -1,0 +1,167 @@
+admin:
+  access_log_path: /tmp/admin_access.log
+  address:
+    socket_address: { address: 0.0.0.0, port_value: 9901 }
+
+node:
+  cluster: cluster-gateway1
+  id: id-gateway1
+
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address: { address: 0.0.0.0, port_value: 10000 }
+    filter_chains:
+    - transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext 
+            common_tls_context:
+              tls_certificate_sds_secret_configs:
+              - name: suiyi_secret
+                sds_config:
+                  api_config_source:
+                    api_type: GRPC
+                    grpc_services:
+                      envoy_grpc:
+                        cluster_name: sds_server
+                    transport_api_version: v3
+                  resource_api_version: v3
+              tls_params:
+                tls_minimum_protocol_version: TLSv1_2
+      filters:
+      - name: envoy.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          codec_type: AUTO
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: local_service
+              domains: ["*"]
+              routes:
+              - match: { prefix: "/" }
+                route: { cluster: service1 }
+          http_filters:
+          - name: envoy.filters.http.ext_authz
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: filter_server
+                timeout: 3s
+              transport_api_version: v3
+          - name: envoy.filters.http.header_to_metadata
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.header_to_metadata.v3.Config
+              request_rules:
+                - header: x-version
+                  on_header_present:
+                    metadata_namespace: envoy.lb
+                    key: "stage"
+                    type: STRING
+                  on_header_missing:
+                    metadata_namespace: envoy.lb
+                    key: "default"
+                    value: "true"
+                    type: STRING
+                  remove: false
+          - name: envoy.router
+  clusters:
+  - name: service1
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    lb_subset_config:
+      fallback_policy: DEFAULT_SUBSET 
+      default_subset:
+        default: true
+      subset_selectors:
+      - keys:
+        - stage
+      - keys:
+        - default
+    load_assignment:
+      cluster_name: service1
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 172.28.1.10
+                port_value: 8080
+          metadata:
+            filter_metadata:
+              envoy.lb:
+                stage: v1
+        - endpoint:
+            address:
+              socket_address:
+                address: 172.28.1.11
+                port_value: 8080
+          metadata:
+            filter_metadata:
+              envoy.lb:
+                default: true
+  - name: sds_server
+    connect_timeout: 0.25s
+    http2_protocol_options:
+      connection_keepalive:
+        interval: 30s
+        timeout: 5s
+    load_assignment:
+      cluster_name: sds_server
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: xds-server
+                port_value: 50051
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext 
+        common_tls_context:
+          tls_certificates:
+          - certificate_chain:
+              filename: /certs/client.pem
+            private_key:
+              filename: /certs/client.key
+          validation_context:
+            match_subject_alt_names:
+            - suffix: "*.private-domain.com.cn"
+            trusted_ca:
+              filename: /certs/ca.crt
+  - name: filter_server
+    connect_timeout: 0.25s
+    http2_protocol_options:
+      connection_keepalive:
+        interval: 30s
+        timeout: 5s
+    load_assignment:
+      cluster_name: filter_server
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: cicd-filter
+                port_value: 50051
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          tls_certificates:
+          - certificate_chain:
+              filename: /certs/client.pem
+            private_key:
+              filename: /certs/client.key
+          validation_context:
+            match_subject_alt_names:
+            - suffix: "*.private-domain.com.cn"
+            trusted_ca:
+              filename: /certs/ca.crt
